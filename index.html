@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGazer Reading Experiment - Research Tool</title>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  
+  <style>
+    /* 1. 기본 레이아웃 및 테마 */
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f7f6;
+      color: #333;
+      overflow-x: hidden;
+    }
+
+    .screen {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+      padding: 40px;
+      position: relative;
+    }
+
+    .active {
+      display: block;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    /* 2. 카드 및 섹션 스타일 */
+    .status-box {
+      margin: 20px auto;
+      padding: 20px;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      line-height: 1.8;
+      text-align: left;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: none;
+      background: #1e66f5;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin: 10px;
+    }
+
+    button:hover { background: #154ec1; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover { background: #5a6268; }
+
+    /* 3. 리딩 화면 전용 스타일 */
+    #readingContainer {
+      max-width: 1000px;
+      margin: 50px auto;
+      background: white;
+      padding: 60px;
+      border-radius: 8px;
+      min-height: 500px;
+      box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+    }
+
+    #pageTitle { font-size: 20px; color: #888; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+    #readingText {
+      font-size: 28px;
+      line-height: 2.0;
+      text-align: left;
+      white-space: pre-wrap;
+      color: #1a1a1a;
+    }
+
+    /* 4. 아이트래킹 포인트 */
+    .calib-dot, .val-dot {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      z-index: 100;
+      transition: opacity 0.2s;
+    }
+    .calib-dot { width: 30px; height: 30px; background: #1e66f5; cursor: pointer; border: 3px solid white; }
+    .val-dot { width: 25px; height: 25px; background: #14a44d; border: 3px solid white; }
+
+    #gazeDot {
+      position: fixed;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: rgba(255, 0, 0, 0.7);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+      display: none;
+      border: 2px solid white;
+    }
+
+    #statusBar {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #00ff00;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-family: monospace;
+      font-size: 12px;
+      z-index: 10000;
+    }
+
+    /* 5. 결과 분석창 스타일 (레이어 겹치기 핵심) */
+    #visualizationContainer {
+      position: relative;
+      width: 1024px;
+      height: 700px;
+      margin: 20px auto;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      overflow: hidden; /* 배경이 튀어나가지 않게 */
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    /* 지문이 복사될 배경 레이어 */
+    #resultTextBackground {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 60px; /* 리딩 화면의 padding과 일치시킴 */
+      box-sizing: border-box;
+      text-align: left;
+      font-size: 28px; /* 리딩 화면의 font-size와 일치 */
+      line-height: 2.0; /* 리딩 화면의 line-height와 일치 */
+      color: #1a1a1a;
+      white-space: pre-wrap;
+      pointer-events: none; /* 클릭 이벤트가 캔버스로 전달되도록 */
+      z-index: 1; /* 가장 아래층 */
+    }
+
+    /* 시선 점이 찍힐 투명 캔버스 */
+    #gazeCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10; /* 지문 레이어보다 위에 배치 */
+      background: transparent !important; /* 배경을 투명하게 하여 아래 지문이 보이게 함 */
+      max-width: 100%;
+    }
+
+    .word-analyzer-container {
+      background: white;
+      border: 2px dashed #1e66f5;
+      padding: 30px;
+      margin: 20px 0;
+      text-align: left;
+      font-size: 24px;
+      line-height: 2.2;
+      border-radius: 12px;
+    }
+
+    .word-span {
+      padding: 2px 4px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .word-span:hover { background: #eef4ff; color: #1e66f5; }
+    .word-span.clicked { background: #ffd700; color: #000; font-weight: bold; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
+
+    .hidden { display: none; }
+
+    .tooltip { position: relative; display: inline-block; cursor: pointer; margin-left: 5px; color: #666; }
+    .tooltip .tooltiptext {
+      visibility: hidden; width: 220px; background-color: #333; color: #fff;
+      text-align: center; border-radius: 6px; padding: 10px; position: absolute;
+      z-index: 1; bottom: 125%; left: 50%; margin-left: -110px; opacity: 0;
+      transition: opacity 0.3s; font-size: 12px; line-height: 1.4;
+    }
+    .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+
+    .result-controls { margin: 20px 0; }
+    select { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+  </style>
+</head>
+<body>
+
+  <div id="gazeDot"></div>
+  
+  <div id="statusBar">System: Initializing...</div>
+
+  <section id="introScreen" class="screen active">
+    <div class="container">
+      <h1>Eye-Tracking Experiment</h1>
+      <div class="status-box">
+        <p><strong>Notice:</strong> This research tool uses your webcam to estimate gaze patterns.</p>
+        <ul>
+          <li>Sit comfortably and ensure your face is well-lit.</li>
+          <li>Try to minimize head movement after calibration.</li>
+          <li>Follow the dots on the screen for the best accuracy.</li>
+        </ul>
+      </div>
+      <button id="startBtn">Begin Calibration</button>
+    </div>
+  </section>
+
+  <section id="calibrationScreen" class="screen">
+    <div class="container">
+      <h2>Calibration Step</h2>
+      <p id="calibrationInstruction">Look at each blue dot and click it 5 times.</p>
+    </div>
+  </section>
+
+  <section id="validationScreen" class="screen">
+    <div class="container">
+      <h2>Validation Step</h2>
+      <p id="validationInstruction">Look at the green dot and press <strong>SPACEBAR</strong>.</p>
+      <p id="validationProgress" style="color: #666;"></p>
+    </div>
+  </section>
+
+  <section id="readingScreen" class="screen">
+    <div id="readingContainer">
+      <div id="pageTitle"></div>
+      <div id="readingText"></div>
+      <p style="margin-top: 40px; color: #999; font-size: 14px;">Press SPACEBAR when finished reading.</p>
+    </div>
+  </section>
+
+  <section id="resultScreen" class="screen" style="overflow-y: auto;">
+    <div class="container">
+      <h1>Research Results</h1>
+      
+      <div id="resultSummary" class="status-box"></div>
+
+      <div class="result-controls">
+        <label for="pageSelect">Visual Analysis for: </label>
+        <select id="pageSelect"></select>
+      </div>
+
+      <div id="visualizationContainer">
+        <div id="resultTextBackground"></div>
+        <canvas id="gazeCanvas" width="1024" height="700"></canvas>
+      </div>
+
+      <hr style="margin: 50px 0; border: 0; border-top: 1px solid #eee;">
+
+      <h2>Qualitative Word Analysis</h2>
+      <p style="color: #666;">Click any word in the box below to see detailed fixation metrics for that specific token.</p>
+      
+      <div id="wordAnalyzerContainer" class="word-analyzer-container"></div>
+      
+      <div id="wordStatsDisplay" class="status-box hidden" style="border-left: 5px solid #1e66f5;">
+        <h3 style="margin-top:0;">Metric for <span id="statWord" style="color:#1e66f5;"></span></h3>
+        <p>
+          <strong>Fixation Count 
+            <span class="tooltip"><i class="fas fa-circle-question"></i>
+              <span class="tooltiptext">Number of gaze samples that landed on this word's area.</span>
+            </span>:
+          </strong> <span id="statCount">0</span>
+        </p>
+        <p>
+          <strong>Estimated Reading Time
+            <span class="tooltip"><i class="fas fa-circle-question"></i>
+              <span class="tooltiptext">Calculated as (Fixation Count × Average Sampling Interval).</span>
+            </span>:
+          </strong> <span id="statTime">0</span> ms
+        </p>
+      </div>
+
+      <div class="result-controls">
+        <button id="downloadCsvBtn" class="secondary">Download Raw Log (CSV)</button>
+        <button id="downloadJsonBtn" class="secondary">Download Summary (JSON)</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="webgazer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
